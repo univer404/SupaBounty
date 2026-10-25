@@ -14,6 +14,7 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -38,6 +39,8 @@ public final class SupaBounty extends JavaPlugin implements Listener, CommandExe
     private final Map<UUID, Integer> pages = new HashMap<>();
     private final Map<UUID, String> sorts = new HashMap<>();
     private final Map<UUID, UUID> guiTargets = new HashMap<>();
+    private final Set<UUID> awaitingSearch = new HashSet<>();
+    private final Map<UUID, String> searchFilters = new HashMap<>();
     private static final Pattern HEX = Pattern.compile("<##([A-Fa-f0-9]{6})>");
 
     private record PendingBounty(UUID target, double amount) {}
@@ -81,7 +84,7 @@ public final class SupaBounty extends JavaPlugin implements Listener, CommandExe
             return true;
         }
         if (!player.hasPermission("supabounty.use")) { send(player, msg("no-permission")); return true; }
-        if (args.length == 0) { openBounties(player, 1); return true; }
+        if (args.length == 0) { searchFilters.remove(player.getUniqueId()); openBounties(player, 1); return true; }
         if (args[0].equalsIgnoreCase("add")) {
             if (args.length < 3) { player.sendMessage(color("&cUsage: /bounty add <player> <amount>")); return true; }
             OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
@@ -131,11 +134,17 @@ public final class SupaBounty extends JavaPlugin implements Listener, CommandExe
         pages.put(player.getUniqueId(), Math.max(1, page));
         String sort = sorts.getOrDefault(player.getUniqueId(), getConfig().getString("settings.sort-default", "amount"));
         List<UUID> ids = getBountyIds();
+        String filter = searchFilters.get(player.getUniqueId());
+        if (filter != null && !filter.isBlank()) {
+            String query = filter.toLowerCase(Locale.ROOT);
+            ids.removeIf(id -> !safeName(Bukkit.getOfflinePlayer(id)).toLowerCase(Locale.ROOT).contains(query));
+        }
         if (sort.equalsIgnoreCase("recent")) ids.sort(Comparator.comparingLong((UUID id) -> data.getLong("bounties." + id + ".created")).reversed());
         else ids.sort(Comparator.comparingDouble((UUID id) -> getBounty(id)).reversed());
         int perPage = Math.max(1, Math.min(45, getConfig().getInt("settings.entries-per-page", 45)));
         int start = (page - 1) * perPage;
         Inventory inv = Bukkit.createInventory(null, 54, color(getConfig().getString("settings.gui-title", "<##00F986>ʙᴏᴜɴᴛɪᴇꜱ") + " (Page " + page + "/" + Math.max(1, (int)Math.ceil((double)ids.size()/perPage)) + ")"));
+        if (ids.isEmpty()) inv.setItem(22, item(Material.PAPER, getConfig().getString("gui.empty-name", "&7No bounties yet"), List.of(filter == null ? "&7No active bounties to display." : "&7No bounty names match: " + filter), null));
         for (int i = start; i < Math.min(start + perPage, ids.size()); i++) {
             UUID id = ids.get(i);
             OfflinePlayer target = Bukkit.getOfflinePlayer(id);
@@ -150,7 +159,7 @@ public final class SupaBounty extends JavaPlugin implements Listener, CommandExe
             inv.setItem(i - start, head);
             guiTargets.put(id, id);
         }
-        inv.setItem(45, item(Material.OAK_SIGN, "&eSearch", List.of("&7Use /bounty <player> to check their bounty."), null));
+        inv.setItem(45, item(Material.OAK_SIGN, "&eSearch", List.of("&7Click, then type part of a player name in chat.", "&7Current search: " + (filter == null ? "none" : filter), "&7Type cancel in chat to cancel."), null));
         inv.setItem(46, item(Material.HOPPER, color(sort.equalsIgnoreCase("recent") ? getConfig().getString("gui.sort-recent-name") : getConfig().getString("gui.sort-amount-name")), List.of("&7Click to change sorting."), null));
         inv.setItem(48, item(Material.ARROW, getConfig().getString("gui.back-name"), List.of("&7Previous page"), null));
         inv.setItem(49, item(Material.SKELETON_SKULL, getConfig().getString("gui.refresh-name"), List.of("&7Click to refresh"), null));
@@ -187,13 +196,18 @@ public final class SupaBounty extends JavaPlugin implements Listener, CommandExe
         if (event.getView().getTitle().startsWith(color(getConfig().getString("settings.gui-title", "<##00F986>ʙᴏᴜɴᴛɪᴇꜱ")))) {
             event.setCancelled(true);
             int slot = event.getRawSlot();
-            if (slot == 46) { sorts.put(player.getUniqueId(), sorts.getOrDefault(player.getUniqueId(), getConfig().getString("settings.sort-default", "amount")).equalsIgnoreCase("recent") ? "amount" : "recent"); openBounties(player, 1); }
+            if (slot == 45) {
+                awaitingSearch.add(player.getUniqueId());
+                player.closeInventory();
+                send(player, "&7Type a player name or part of a name in chat to search bounties. Type &ccancel &7to cancel.");
+            }
+            else if (slot == 46) { sorts.put(player.getUniqueId(), sorts.getOrDefault(player.getUniqueId(), getConfig().getString("settings.sort-default", "amount")).equalsIgnoreCase("recent") ? "amount" : "recent"); openBounties(player, 1); }
             else if (slot == 49) openBounties(player, pages.getOrDefault(player.getUniqueId(), 1));
             else if (slot == 48) openBounties(player, Math.max(1, pages.getOrDefault(player.getUniqueId(), 1) - 1));
             else if (slot == 50) {
                 int next = pages.getOrDefault(player.getUniqueId(), 1) + 1;
                 int perPage = Math.max(1, Math.min(45, getConfig().getInt("settings.entries-per-page", 45)));
-                if ((next - 1) * perPage < getBountyIds().size()) openBounties(player, next);
+                if ((next - 1) * perPage < getVisibleBountyIds(player).size()) openBounties(player, next);
             }
         }
     }
@@ -216,8 +230,42 @@ public final class SupaBounty extends JavaPlugin implements Listener, CommandExe
         Bukkit.getScheduler().runTask(this, () -> send(killer, msg("bounty-paid").replace("{amount}", money(amount)).replace("{player}", victim.getName())));
     }
 
+    @EventHandler public void onChatSearch(AsyncPlayerChatEvent event) {
+        UUID playerId = event.getPlayer().getUniqueId();
+        if (!awaitingSearch.remove(playerId)) return;
+        event.setCancelled(true);
+        String query = event.getMessage().trim();
+        Bukkit.getScheduler().runTask(this, () -> {
+            Player player = Bukkit.getPlayer(playerId);
+            if (player == null) return;
+            if (query.equalsIgnoreCase("cancel")) {
+                send(player, "&7Bounty search cancelled.");
+                openBounties(player, pages.getOrDefault(playerId, 1));
+                return;
+            }
+            if (query.isBlank()) {
+                searchFilters.remove(playerId);
+                send(player, "&7Search cleared.");
+            } else {
+                searchFilters.put(playerId, query);
+                send(player, "&aSearching bounties for: &f" + query);
+            }
+            openBounties(player, 1);
+        });
+    }
+
     @EventHandler public void onJoin(PlayerJoinEvent event) {
         // UUID-keyed storage means players retain bounties when they change names.
+    }
+
+    private List<UUID> getVisibleBountyIds(Player player) {
+        List<UUID> ids = getBountyIds();
+        String filter = searchFilters.get(player.getUniqueId());
+        if (filter != null && !filter.isBlank()) {
+            String query = filter.toLowerCase(Locale.ROOT);
+            ids.removeIf(id -> !safeName(Bukkit.getOfflinePlayer(id)).toLowerCase(Locale.ROOT).contains(query));
+        }
+        return ids;
     }
 
     private List<UUID> getBountyIds() {
