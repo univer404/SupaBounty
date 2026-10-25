@@ -1,0 +1,40 @@
+# SupaBounty settings. Changes are loaded after /bounty reload.
+settings:
+  currency-symbol: "$"
+  minimum-bounty: 1.0
+  max-bounty: 1000000000000.0
+  gui-title: "<##00F986>ʙᴏᴜɴᴛɪᴇꜱ"
+  confirmation-title: "ᴄᴏɴꜰɪʀᴍ ʙᴏᴜɴᴛʏ"
+  entries-per-page: 45
+  sort-default: "amount" # amount or recent
+  pay-killer-on-death: true
+  allow-self-bounty: false
+  sounds:
+    success: "ENTITY_EXPERIENCE_ORB_PICKUP"
+    error: "ENTITY_VILLAGER_NO"
+messages:
+  no-permission: "&cYou don't have permission to use this."
+  player-not-found: "&cThat player does not exist."
+  no-bounty: "&cPlayer has no bounty on them."
+  not-enough-money: "&cYou do not have enough money."
+  invalid-amount: "&cEnter a valid amount greater than zero."
+  self-bounty: "&cYou cannot place a bounty on yourself."
+  confirm-prompt: "&7Confirm placing {amount} on {player}."
+  bounty-added: "<##A8A8A8>You set a <##7AFB00>{amount} <##A8A8A8>bounty on <##37BFF8>{player}"
+  bounty-paid: "<##7AFB00>You received a bounty of {amount} for killing {player}."
+  bounty-view: "<##37BFF8>{player} <##A7A7A8>has a bounty of <##7AFB00>{amount}"
+  search-prompt: "&7Use /bounty <player> to look up a player's bounty."
+  reload: "&aSupaBounty configuration reloaded."
+  cancelled: "&7Bounty placement cancelled."
+gui:
+  cancel-name: "<##FC0000>ᴄᴀɴᴄᴇʟ"
+  cancel-lore: "&7Click to cancel the bounty adding!"
+  confirm-name: "<##00FC00>ᴄᴏɴꜰɪʀᴍ"
+  confirm-lore: "&7Click to confirm placing the bounty."
+  bounty-lore: "&fBounty: &7{amount}"
+  refresh-name: "<##00F986>ʙᴏᴜɴᴛɪᴇꜱ"
+  next-name: "<##00F986>ɴᴇxᴛ"
+  back-name: "<##00F986>ʙᴀᴄᴋ"
+  sort-amount-name: "<##00F986>ꜱᴏʀᴛ: ᴀᴍᴏᴜɴᴛ"
+  sort-recent-name: "<##00F986>ꜱᴏʀᴛ: ʀᴇᴄᴇɴᴛ"
+  empty-name: "&7No bounties yet"
