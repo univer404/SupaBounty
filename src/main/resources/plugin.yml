@@ -1,0 +1,20 @@
+name: SupaBounty
+version: 1.0.0
+main: com.supabounty.SupaBounty
+api-version: '1.21'
+author: univer404
+description: Configurable player bounty system with a confirmation GUI and bounty leaderboard.
+depend: [Vault]
+commands:
+  bounty:
+    description: View bounties or place a bounty on a player.
+    usage: /bounty [player] | /bounty add <player> <amount>
+    aliases: [bounties]
+    permission: supabounty.use
+permissions:
+  supabounty.use:
+    description: Use bounty commands.
+    default: true
+  supabounty.admin:
+    description: Manage SupaBounty.
+    default: op
