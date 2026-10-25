@@ -30,6 +30,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class SupaBounty extends JavaPlugin implements Listener, CommandExecutor, TabCompleter {
     private Economy economy;
@@ -39,7 +40,7 @@ public final class SupaBounty extends JavaPlugin implements Listener, CommandExe
     private final Map<UUID, Integer> pages = new HashMap<>();
     private final Map<UUID, String> sorts = new HashMap<>();
     private final Map<UUID, UUID> guiTargets = new HashMap<>();
-    private final Set<UUID> awaitingSearch = new HashSet<>();
+    private final Set<UUID> awaitingSearch = ConcurrentHashMap.newKeySet();
     private final Map<UUID, String> searchFilters = new HashMap<>();
     private static final Pattern HEX = Pattern.compile("<##([A-Fa-f0-9]{6})>");
 
